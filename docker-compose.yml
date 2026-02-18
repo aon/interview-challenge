@@ -1,0 +1,52 @@
+services:
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.9-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - caddy_data:/data
+    networks:
+      - caddy
+    restart: unless-stopped
+
+  app:
+    build: .
+    labels:
+      caddy: ":80"
+      caddy.reverse_proxy: "{{upstreams 3000}}"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/interview_challenge
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - caddy
+      - backend
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: interview_challenge
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+    restart: unless-stopped
+
+networks:
+  caddy:
+  backend:
+
+volumes:
+  caddy_data:
+  postgres_data:
